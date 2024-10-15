@@ -8,12 +8,17 @@ NOTICE: This project is meant to be just a simple example in building the Azure/
 ### Project Steps:    
   
 1. Setup and build some infrastructure in Azure for a data pipeline via Terraform. We will use the [medallion architecture](https://www.databricks.com/glossary/medallion-architecture) for the pipeline.   
+  
 2. Write some notebooks in Azure databricks for data ingestion, transform and enrichment.  
+  
 3. Create an Azure Data Factory pipeline that executes the Databricks notebooks against the Databricks jobs cluster.  
   
 ### Prerequisites:  
+   
 - Azure account (this project is done with free trial)  
+
 - [Azure CLI installed](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)  
+
 - [Terraform installed](https://developer.hashicorp.com/terraform/install)  
   
   
