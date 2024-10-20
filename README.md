@@ -20,7 +20,6 @@ Under the **Project Main Steps** are the implemented parts. In the near Future I
   
 2. Write some notebooks in Azure databricks for data ingestion, transform and enrichment of fake banking data.  
 
-TODO!!!!  
 3. Setup a workflow in Databricks for automating the pipeline.
 
 4. Share the gold level data with Delta Share to Power BI.
