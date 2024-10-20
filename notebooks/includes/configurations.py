@@ -1,2 +1,2 @@
 # Databricks notebook source
-external_location_path = "abfss://extcontainer@extg08p9a.dfs.core.windows.net/"
+external_location_path = "abfss://<container-name>@<storage-account>.dfs.core.windows.net/"
