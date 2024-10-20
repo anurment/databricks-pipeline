@@ -1,4 +1,5 @@
 test-data/
-terraform/.**
-terraform/terraform.tfstate**
+data/test-data/
+terraform/adb-vnet-injection/.**
+terraform/adb-vnet-injection/terraform.tfstate**
 

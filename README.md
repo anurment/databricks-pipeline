@@ -1,57 +1,102 @@
-# Build an Azure Databricks ETL pipeline with Terraform and Azure Data Factory  
+# Build an Azure Databricks LakeHouse with Terraform and implement an ETL pipeline.
   
-## Project Overview  
+## Project Overview 
+
+- Keywords / Tech stack: Azure, Azure cli, Azure Data Factory, Databricks, Terraform, Spark, Kafka, ML, Python, SQL.  
   
-NOTICE: This project is meant to be just a simple example in building the Azure/Databricks infrastucture and the ETL pipeline. Some important steps, configurations etc. are omitted from this project regarding a production environment. This project will be refined and improved by for e.g setting up virtual network, unity catalog, restructure of the terraform files for better reusability etc.   
+NOTICE: This project is meant to be just a simple example in building the Azure/Databricks infrastucture and the ETL pipeline. Some important steps, configurations etc. are omitted from this project regarding a production environment. This project will be refined and improved by for e.g restructure of the terraform files for better reusability etc.  
+  
+Under the **Project Main Steps** are the implemented parts. In the near Future I will implement: 
+- SQL database for data source with Data Factory connection.
+- Kafka streaming from a NASA API.
+- ML pipeline.  
 
   
-### Project Steps:    
+### Project Main Steps:    
   
-1. Setup and build some infrastructure in Azure for a data pipeline via Terraform. We will use the [medallion architecture](https://www.databricks.com/glossary/medallion-architecture) for the pipeline.   
+1. Setup and build some infrastructure in Azure for a data pipeline via Terraform. We will use the [medallion architecture](https://www.databricks.com/glossary/medallion-architecture) for the pipeline. 
+
+2. Setup the Databricks workspace for Catalogs etc.
   
-2. Write some notebooks in Azure databricks for data ingestion, transform and enrichment.  
+2. Write some notebooks in Azure databricks for data ingestion, transform and enrichment of fake banking data.  
+
+TODO!!!!  
+3. Setup a workflow in Databricks for automating the pipeline.
+
+4. Share the gold level data with Delta Share to Power BI.
+
+5. Construct a Power BI report.  
   
-3. Create an Azure Data Factory pipeline that executes the Databricks notebooks against the Databricks jobs cluster on set schedule.  
-  
-### Prerequisites:  
-   
+### Prerequisites:
+
 - Azure account (this project is done with free trial)  
+
+- Admin rights to your Azure Databricks account, see: https://learn.microsoft.com/en-us/azure/databricks/data-governance/unity-catalog/manage-privileges/admin-privileges
 
 - [Azure CLI installed](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)  
 
 - [Terraform installed](https://developer.hashicorp.com/terraform/install)  
-  
-  
+
+- Some basic knowledge of azure and terraform is preferred but if you are not familiar with Azure, Databricks, terraform or any other tech used in here, I suggest that you reference the [Microsoft Learn](https://learn.microsoft.com/en-us/), [Databricks Resources](https://www.databricks.com/resources) and [Terraform](https://www.terraform.io/) official pages if you do not understand something. There is a lot of outdated information in youtube, blogs, etc. so I would avoid those as a source material in learning.  
+
+- The local workspace for this project is WSL2 Ubuntu-20.04, so bash commands are used here.
+
+
 ### Overview of the Terraform IaC files  
   
-In `databricks` folder you will find 4 terraform files for building the needed resources. You can follow the comments and check the [Terraform registry](https://registry.terraform.io/) for additional information about the commands.  
-  
-- provider.tf:  
+In `terraform/adb-vnet-injection` folder you will find terraform files for building some resources. You can follow the comments and check the [Terraform registry](https://registry.terraform.io/) for additional information about the commands. 
+
+We will configure the following resources for the project:
+
+- Unity catalog with Metastore (created automatically).  
+- Main Resource Group for our Databricks workspace etc.  
+- Storage Account for external storage with a container.   
+- Vnet-injected Databricks Workspace with some predefined folders.  
+- Databricks Cluster.  
+- Azure Data Factory (**note: this is not used yet in the project**).  
+
+File overview:  
+
+- **module-filder**:
+    - module for creating the Databricks cluster.  
+
+- **azure_data_factory.tf**:  
+    - Azure data Factory resource.  
+
+- **data.tf**:  
+    - Some needed data sources for configurations etc.  
+
+- **extstorage.tf**:  
+    - Resources for the external storage (data source).  
+
+- **main.tf**:
+    - Versioning for the providers etc.  
+
+- **outputs.tf**:
+    - Some output variables.  
+ 
+- **providers.tf**:    
     - Here we configure the required providers that terraform utilizes in building the infrastructure.    
-    - NOTE: the `azurerm`-provider needs the subscription_id from your azure account. It will be asked when we use the `terraform plan` and `terraform apply` commands.   
-  
-- main.tf:  
-Here we will configure the following resources for the project:
-    - Resource Group  
-    - Storage Account  
-    - Bronze, Silver and Gold containers for the medallion architecture.  
-    - Databricks Workspace  
-    - Azure Key Vault  
-    - Service Principal  
-    - Databricks Cluster
-  
-- variables.tf:  
+    - **NOTE**: the `azurerm`-provider needs the **subscription_id** from your azure account. It will be asked when we use the `terraform plan` and `terraform apply` commands.   
+ 
+- **variables.tf**:  
     - Here we declare the different variables needed for the configuration.    
   
-- terraform.tfvars:  
+- **terraform.tfvars**:  
     - Here we can set the variables we declared in variables.tf.  
+
+- **vnet.tf**:  
+    - Private network for the Databricks workspace.  
+
+- **workspace.tf**:  
+    - Resources for the Databricks workspace.  
   
 ### Part 1 - Build the infrastucture with terraform:  
   
 1. First authenticate with Azure CLI and select your subscription id by running the command:  
 `az login`  
   
-2. Run the command: `terraform init`  
+2. Cd to the `terraform/v-net-injection`-folder and run the command: `terraform init`  
   
 3. Set the required variables in terraform.tfvars.    
   
@@ -66,10 +111,10 @@ Terraform will now build the resources. This can take some time.
   
 When the terraform is building the infrastructure we can take a look at the test data we are using in this project:  
   
-- unzip the test-data.zip file, for e.g with unzip:  
-`unzip test-data.zip -d .`  
+- unzip the `test-data.zip`-file in the `data`-folder , for e.g with unzip:  
+command:  `unzip test-data.zip -d .`  
   
-We have three different types of csv-files consisting of fake banking data. Customer data is treated with the update and insert-technique and the other two are loaded incrementally:  
+We have three different types of csv-files consisting of fake banking data. Customer data is treated with the update and insert -technique (UPSERT) and the other two are loaded incrementally:  
   
 **Customer:**  
   
@@ -85,7 +130,7 @@ We have three different types of csv-files consisting of fake banking data. Cust
 **Customer Drivers:** 
   
 -date: date that the data was generated by RiskModeling area  
--customerId: unique identifier of the  customer  
+-customerId: unique identifier of the customer  
 -monthly_salary: monthly salary in USD  
 -health_score: score - how important is the customer for the bank  
 -current_debt: current debt that the  customer has with our bank  
@@ -104,7 +149,7 @@ Our goal is to:
 1. Provide the Banks Marketing team updated customer data.  
 2. Provide the Banks Finance team daily load transactions complemented with customer drivers.   
   
-Our architecture:  
+Our architecture in DataBricks:  
   
 **Bronze:** Store the raw data in original format.  
 **Silver:** Store the transformed data in delta format.    
@@ -112,183 +157,104 @@ Our architecture:
 
 
   
-### Part 3 - Add some folders and notebooks to your Databricks workspace   
+### Part 3 - Add some folders Catalogs and schemas to your Databricks workspace   
   
-When the terraform build process is complete, search for `Azure Databricks` in your Azure Portal and select your newly created workspace. Click on `Launch Workspace`. From the left sidebar click on `workspace` and create five folders inside the workspace-folder:  
-- includes  
-- ingestion  
-- enrichment  
-- utilities   
-- set-up  
+1. Find your newly created Databricks workspace inside the created resource group in Azure portal and log in.  
+2. From the left sidebar select **Catalog**,click on the **+**-button and **Add a catalog**. Remember to select the Storage location of your workspace.  
+3. Create 3 catalogs: **bronze_catalog**, **silver_catalog**, **gold_catalog**.  
+4. Inside bronze catalog create 3 schemas for the raw data: customer, customer_driver, loan_trx.  
+5. Create the same schemas to silver and gold catalogs.  
+NOTE: if you encounter problems creating the catalogs, ensure that you have the Admin rights from your [databricks account portal](https://accounts.azuredatabricks.net/). Remember that you have to login with an account that has the Global Administrator Role.   
+
+### Part 4 - Add a storage credential and an external location
+
+1. From the left sidebar select **Catalog**,click on the **+**-button and **Add a storage credential**.  
+2. Fill the form like so:  
+    - Credential Type: Azure Managed Identity.  
+    - Storage credential name: `some name`  
+    - Access connector ID: In the Azure Portal > resource group we created > access connector >  copy and paste the Resource ID  
+3. From the left sidebar select **Catalog**,click on the **+**-button and **Add an external location**.  
+4. Fill the form like so:  
+    - External location name: `some name`  
+    - Storage credential: pick the one you just created.  
+    - URL: `abfss://<containername>@<storage_account_name>.dfx.windows.net/`. You can find the **storage_account_name** and **containername** for your external storage from your azure portal in the same resource group.  
   
-![Databricks workspace](./img/databricks_ws.png)  
   
+### Part 5 - Upload data to the external location 
+
   
-### Part 4 - Upload data to the bronze container  
+Create three folders `customer`, `customerDriver` and `transactions` and add one file from the test-data in each of them in the external container in Azure portal > external storage account > external container > upload.  You should see the data now in your: Databricks workspace > Catalog > External Data > external location > Browse. You can test that the cluster can access the external location by opening a notebook and running command: `dbutils.fs.ls("abfss://<containername>@<storage_account_name>.dfx.windows.net/")`.  
   
-For illustration purposes we are going to use [Azure Storage Explorer](https://azure.microsoft.com/en-us/products/storage/storage-explorer/#overview) to upload the files to the bronze container.  Download, install it and connect your account. 
+### Part 6 - Data ingestion - (TO BRONZE)   
+
+- From `notebooks`-folder you can find all the notebooks used in this tutorial. The same folders were created in your workspace by Terraform already.
   
-From the explorer in the left side of the window we can find our containers:  
-  
-![Azure Storage Explorer](./img/azStorageExplorer.png)  
-  
-Drag and drop the three folders `customer`, `customerDriver` and `transactions` in the bronze container.  
-  
-### Part 5 - Data ingestion    
-  
-- In your databricks workspace, in the `includes`-folder create the following notebooks:  
--**common_functions.py**  
--**configurations.py**  
+- In your databricks workspace, in the `includes`-folder create the following notebooks:   
+    - **configurations.py** 
+        - The filepath for the external location is read from here. `abfss://<containername>@<storage_account_name>.dfx.windows.net/"`
   
 - In your databricks workspace, in the `ingestion`-folder create the following notebooks:  
--**customer.py**  
--**customerDrivers.py**  
--**loanTransactions.py**    
+    - **customer_loader**:     
+        - customer_yyyy-MM-dd.csv files are ingested to the bronze catalog with UPSERT technique using Auto Loader, see: [What is Auto Loader?](https://docs.databricks.com/en/ingestion/cloud-object-storage/auto-loader/index.html).  
+    - **customer_driver_loader**:    
+        - customerDrivers_yyyy-MM-dd.csv files are ingested incrementally to the bronze catalog using Auto Loader.  
+    - **loan_trx_loader**:  
+        - loanTrx_yyyy-MM-dd.csv files are ingested incrementally to the bronze catalog using Auto Loader.  
 
- 
-  
-You can find the code for all the notebooks in the local workspace in folder `notebooks`. Read code comments.  
-  
-- **common_functions.py:**  
-    Function for inserting a timestamp column to a dataframe  
-    
-  
-- **configurations.py:**  
-    Fill in the correct path to your containers. Check the comment for help.   
-  
-- **customer.py**, **customerDrivers.py**  and **loanTransactions.py**:  
-    In these notebooks we do some transformations and save the data in delta format in our silver container.  
-    NOTE: each of the %run magic commands must be in an isolated code block.  
+- In the `transform`, `enrichment`, `set-up` and folder do the same copy-pasting. In these notebooks we make some transformations, enrichment etc. See the code comments for more details.   
+
+- **NOTE**: each of the %run magic commands must be in an isolated code block.  
 
 
   
-### Part 6 - Testing the Data ingestion  
-- In your databricks workspace, in the `utilities`-folder create the following notebook:  
--test_ingestion.py  
-  
-Copy and paste the code from your local file `/notebooks/utilities/test_ingestion.py` to the notebook.  
-  
-Run the `test_ingestion` notebook and check that the data has been stored in the silver container:  
-  
-![Test](./img/notebook_test.png)  
-  
-  
-### Part 7 - Enrichment  
-  
-- In your databricks workspace, in the `set-up`-folder create the following notebook: 
-    **database.py**  
-  
-- In your databricks workspace, in the `enrichment`-folder create the following notebook:  
-    **customer.py**  
-    **loantTrx.py**  
-  
-   
-  
-You can find the code for all the notebooks in the local workspace in folder `notebooks`. Read code comments.  
-  
-- **database.py:**  
-  -  Creates the database for the gold container.
-  -  NOTE: remember to separate the %run magic command to a separate cell.    
-  
-- **customer.py:**  
-  -  Here we load the customer data from the silver container, add a timestamp and save the data frame to the gold container. After this we create a master customer table in our database.  
+### Part 7 - Testing the Data ingestion  
 
+- Run the code in your `set-up/create_bronze_tables` notebook to initialize the schema for the UPSERT technique to work.  
   
-- **loanTrx.py:**  
-  -  Here we load and join the customerDrivers and loanTrx data frames in order to enrich our transactional data. 
-  -  We add a timestamp to the joined dataframe, save our featureLoanTrx dataframe in the gold container and create a sql table for later queries. 
-  - Then we are going to do some aggregations from the featureLoanTrx dataframe, add a timestamp, save the aggLoanTrx dataframe in the gold container and create a sql table for later queries.   
-  
-  
-### Part 8 - Testing the enrichment  
-  
-- Execute the database.py notebook first.
-- After this we can test the whole pipeline by uncommenting the last lines from the test_ingestion.py notebook.  
-  
-- Check for errors and that the files have been saved from Azure Storage Explorer.    
-  
-### Part 9 - Data Factory
-  
--  Go to azure portal and create a new resource. 
-- Search for `data factory` and click on create. 
-- Select the subscription, resource group and the region. You can leave the configuration in the other tabs as is:  
-  
-![adf](./img/adf.png)  
-  
-In your azure portal, navigate to the data factory you just created and click on `launch studio`.  
-  
-Steps for creating the time triggered pipeline:  
-
-1.  In the Data Factory studio create a new pipeline and rename it.  
-
-2. Add a new Parameter `p_processing_date` to the pipeline:   
-
-![adf_pipeline](./img/adf_pipeline.png)  
-
-3. Search for databricks in the `Activities` search bar. Drag and drop the Notebook in to the empty canvas:  
-
-![adf_canvas1](./img/adf_canvas1.png)
-
-4.  Create an access token to the databricks cluster:
--  In your Databricks workspace, from the top right account icon, select `Settings`.  
--  Under the User-title select `Developer` --> `Access tokens` --> `Manage` --> `Generate new token`. Copy the token. See the below image:  
-
-![db_token](./img/db_token.png)  
+Run the notebooks in `ingestion`-folder and see if the data is loaded from the external data source to the bronze level catalogs.   
 
 
-5.  Add a linked service to your notebook:  
+### Part 8 - Transformations (TO SILVER)  
+  
+- In the `transform`-folder you can find the code for the data cleaning and transformations for the silver layer.  See the code comments for more details. Similar to the PART 6, test the transformation process by running the notebooks.  
 
--  In Data Factory page, select the notebook that you placed on the canvas. Rename it and add a new linked service:
+### Part 9 - Enrichment (TO GOLD)
 
-![adf_canvas2](./img/adf_canvas2.png)
+- In the `enrichment`-folder you can find the code for the data cleaning and transformations for the silver layer.  See the code comments for more details. Similar to the PART 6, test the transformation process by running the notebooks.
+  
+  
+### Part 10 - Setting up Databricks Workflow for automation  
 
--  Fill in/select the options like so: 
+1. In your Databricks portal navigate to **Workflows** > **Create Job**  
+2. see [Step 6: Create a Databricks job to run the pipeline](https://docs.databricks.com/en/getting-started/data-pipeline-get-started.html) and follow the instructions. It should be pretty simple. Remember that for free trial account you might have a cpu limit so you have to select the same cluster we created.  Remember to add more files to the external storage container.  
+  
+Workflow:  
 
-![adf_canvas3](./img/adf_canvas3.png)  
+![Databricks Workflow](./data/img/db_workflow.png)  
+
+
+3. see [Step 7: Schedule the data pipeline job](https://docs.databricks.com/en/getting-started/data-pipeline-get-started.html) for automating the job.
+4. Observe that the pipeline is correctly.  
+
+NOTE: If you running to problems and in general if you want to test the pipeline you can delete tables, Auto Loader checkpoints and re-initialize the bronze tables by running the code in the `set-up` files.  
+
+
+### Part 11 - Setting up Delta Sharing for Power BI  
+
+1. See [Create and manage shares for Delta Sharing](https://learn.microsoft.com/en-us/azure/databricks/delta-sharing/create-share#add-tables). Follow the instructions in order to share your gold level tables to power BI.  
+
+### Part 12 - Power BI report  
+
+1. Open the shared tables in power BI, see [Delta Sharing](https://learn.microsoft.com/en-us/power-query/connectors/delta-sharing)  
+
+2. Create for example a Star Schema and some visualizations:  
+
+![power BI](./data/img/powerBI.png)  
+
+
+### END (for now)
   
 
--  Fill in the Access token you just created.  
--  If the ****Choose from existing clusters** part is empty and does not seem to find the cluster based on the name of the cluster, go to **Compute**-page in your Databricks workspace and find the cluster id from the json-information file associated to your cluster.  Copy and paste the cluster id to the form. Click on create.  
-
-6.  Add the notebook path to your notebook activity from the **Settings**- tab:
-
-![adf_canvas4](./img/adf_canvas4.png)  
-  
-7.  Add the **p_file_date** parameter to the Base parameters in **Settings**-tab:
-    -  Click on the empty value form and **Add a dynamic expression**: `@formatDateTime(pipeline().parameters.p_processing_date, 'yyyy-MM-dd')`
-
-
-![adf_canvas5](./img/adf_canvas5.png)  
-  
-
-8. Now you can select and copy/paste the created notebook to the canvas, change the name and the associated notebook path and create all the other notebook activities:  
-
-![adf_canvas6](./img/adf_canvas6.png)
-
-NOTE: Remember that the enrichment_customer does not take in the **p_file_date** -parameter.  
-  
-9. Create a trigger to run the pipeline automatically:  
-
--  Go to Manage > Triggers > New  
--  Select the schedule when the pipeline is to ne run. For e.g:   
-  
-![trigger1](./img/trigger1.png)  
-  
-10.  Associate the trigger to your pipeline. Above the pipeline canvas > Add trigger:  
-
-![trigger2](./img/trigger2.png)
-
-  
-After clicking OK, you will be asked for the **p_processing_date** -parameter. Fill in: `@trigger().outputs.windowEndTime`  
-  
-If you selected the pipeline to be triggered, lets say five minutes from now. You can go to the Azure Storage explorer, delete the data in the silver and Gold containers and observe if the pipeline is functioning correctly when it is triggered.  
-
-### END   
-  
-Many techologies and working practices were used in this project. Some future improvements in mind:  
-
--  Automate the whole infrastructure building, uploading of the notebooks and the pipeline automation with terraform.  
--  Add some other technologies for other use cases, for e.g. Kafka.  
 
   
 
