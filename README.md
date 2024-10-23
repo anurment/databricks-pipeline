@@ -1,4 +1,4 @@
-# Build an Azure Databricks Lake House with Terraform and implement an ETL pipeline to Power BI.
+# Building an Azure Databricks Lake House via Terraform and implement an ETL pipeline to Power BI.
   
 ## Project Overview 
 
